@@ -24,6 +24,7 @@ import tarfile
 from xml.etree.ElementTree import XML
 from servo.util import download_file
 import urllib2
+from bootstrap import check_gstreamer_lib
 
 from mach.registrar import Registrar
 import toml
@@ -476,6 +477,32 @@ class CommandBase(object):
             bin_folder = path.join(destination_folder, "PFiles", "Mozilla research", "Servo Tech Demo")
         return path.join(bin_folder, "servo{}".format(BIN_SUFFIX))
 
+    def needs_gstreamer_env(self, target):
+        if check_gstreamer_lib():
+            return False
+        gstpath = path.join(self.context.topdir, "support", "linux", "gstreamer", "gstreamer")
+        if sys.platform == "linux2":
+            if "x86_64" not in (target or host_triple()):
+                raise Exception("We don't currently support using local gstreamer builds \
+                                     for non-x86_64, please file a bug")
+            if path.isdir(gstpath):
+                return True
+            else:
+                raise Exception("Your system's gstreamer libraries are out of date \
+                                     (we need at least 1.12). Please run ./mach bootstrap-gstreamer")
+        else:
+                raise Exception("Your system's gstreamer libraries are out of date \
+                                     (we need at least 1.12). If you're unable to \
+                                     install them, let us know by filing a bug!")
+        return False
+
+    def set_run_env(self):
+        """Some commands, like test-wpt, don't use a full build env,
+           but may still need dynamic search paths. This command sets that up"""
+        if self.needs_gstreamer_env(None):
+            gstpath = path.join(self.context.topdir, "support", "linux", "gstreamer", "gstreamer")
+            os.environ["LD_LIBRARY_PATH"] = path.join(gstpath, "lib", "x86_64-linux-gnu")
+
     def build_env(self, hosts_file_path=None, target=None, is_build=False, test_unit=False):
         """Return an extended environment dictionary."""
         env = os.environ.copy()
@@ -513,11 +540,25 @@ class CommandBase(object):
             # Link LLVM
             env["LIBCLANG_PATH"] = path.join(package_dir("llvm"), "lib")
 
-        if is_windows():
             if not os.environ.get("NATIVE_WIN32_PYTHON"):
                 env["NATIVE_WIN32_PYTHON"] = sys.executable
             # Always build harfbuzz from source
             env["HARFBUZZ_SYS_NO_PKG_CONFIG"] = "true"
+
+        if self.needs_gstreamer_env(target):
+            gstpath = path.join(self.context.topdir, "support", "linux", "gstreamer", "gstreamer")
+            extra_path += [path.join(gstpath, "bin")]
+            libpath = path.join(gstpath, "lib", "x86_64-linux-gnu")
+            # we append in the reverse order so that system gstreamer libraries
+            # do not get precedence
+            extra_path = [libpath] + extra_path
+            extra_lib = [libpath] + extra_path
+            append_to_path_env(path.join(libpath, "pkgconfig"), env, "PKG_CONFIG_PATH")
+
+        if sys.platform == "linux2":
+            distro, version, _ = platform.linux_distribution()
+            if distro == "Ubuntu" and (version == "16.04" or version == "14.04"):
+                env["HARFBUZZ_SYS_NO_PKG_CONFIG"] = "true"
 
         if extra_path:
             env["PATH"] = "%s%s%s" % (os.pathsep.join(extra_path), os.pathsep, env["PATH"])
