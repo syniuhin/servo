@@ -113,6 +113,7 @@ class DecisionTask:
         commit_sha = os.environ["GITHUB_EVENT_COMMIT_SHA"]
         clone_url = os.environ["GITHUB_EVENT_CLONE_URL"]
         source = os.environ["GITHUB_EVENT_SOURCE"]
+        branch = os.environ["GITHUB_EVENT_BRANCH"]
         owner = os.environ["GITHUB_EVENT_OWNER"]
 
         env = env or {}
@@ -120,9 +121,10 @@ class DecisionTask:
         if with_repo:
             env["GITHUB_EVENT_COMMIT_SHA"] = commit_sha
             env["GITHUB_EVENT_CLONE_URL"] = clone_url
+            env["GITHUB_EVENT_BRANCH"] = branch
 
             command = """
-                    git clone --depth 1 $GITHUB_EVENT_CLONE_URL repo
+                    git clone --depth 1 $GITHUB_EVENT_CLONE_URL --branch $GITHUB_EVENT_BRANCH repo
                     cd repo
                     git checkout $GITHUB_EVENT_COMMIT_SHA
                 """ + command
