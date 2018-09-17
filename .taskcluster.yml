@@ -5,7 +5,7 @@ policy:
 tasks:
   - $if: 'tasks_for == "github-push"'
     then:
-      $if: 'event.ref == "refs/heads/auto" || event.ref == "refs/heads/try"'
+      $if: 'event.ref == "refs/heads/auto" || event.ref == "refs/heads/try" || event.ref == "refs/heads/taskcluster"'
       then:
         taskGroupId: {$eval: as_slugid("decision_task")}
         taskId: {$eval: as_slugid("decision_task")}
